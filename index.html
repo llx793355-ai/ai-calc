@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>AI预测系统 V4</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{font-family:Arial;text-align:center;padding:15px;}
+input{width:50px;margin:3px;}
+button{margin:5px;padding:8px;}
+.big{color:red;font-weight:bold;}
+.small{color:blue;font-weight:bold;}
+</style>
+</head>
+
+<body>
+
+<h2>🤖 AI预测系统 V4（概率版）</h2>
+
+<p>当前：</p>
+<input id="a"><input id="b"><input id="c">
+
+<p>p：</p>
+<input id="p">
+
+<p>上期：</p>
+<input id="ap"><input id="bp"><input id="cp"><br>
+
+<button onclick="calc()">计算</button>
+
+<h3 id="result"></h3>
+
+<hr>
+
+<h3>输入实际</h3>
+<select id="realSize"><option>大</option><option>小</option></select>
+<select id="realOE"><option>单</option><option>双</option></select>
+
+<br>
+<button onclick="record()">记录</button>
+<button onclick="reset()">重置</button>
+
+<h3 id="stats"></h3>
+<canvas id="chart"></canvas>
+
+<script>
+let history=JSON.parse(localStorage.getItem("h")||"[]");
+let sizeHist=JSON.parse(localStorage.getItem("s")||"[]");
+let oeHist=JSON.parse(localStorage.getItem("o")||"[]");
+
+function calc(){
+let a=+a.value,b=+b.value,c=+c.value,p=+p.value;
+let ap=+ap.value,bp=+bp.value,cp=+cp.value;
+
+let total=(a+c-b)+(a+b+c)+p*(a+b+c)+Math.abs(a-ap)+Math.abs(b-bp)+Math.abs(c-cp);
+let final=total%27;
+
+let size=final>=14?"大":"小";
+let oe=final%2?"单":"双";
+
+window.pred=size+oe;
+
+// === 概率计算 ===
+let lastSize=sizeHist.slice(-10);
+let lastOE=oeHist.slice(-10);
+
+let bigRate=lastSize.filter(x=>x=="大").length/(lastSize.length||1);
+let smallRate=1-bigRate;
+
+let oddRate=lastOE.filter(x=>x=="单").length/(lastOE.length||1);
+let evenRate=1-oddRate;
+
+// 融合模型 + 趋势（简单加权）
+if(size=="大") bigRate+=0.1;
+else smallRate+=0.1;
+
+if(oe=="单") oddRate+=0.1;
+else evenRate+=0.1;
+
+// 限制范围
+bigRate=Math.min(bigRate,1);
+smallRate=Math.min(smallRate,1);
+oddRate=Math.min(oddRate,1);
+evenRate=Math.min(evenRate,1);
+
+let strength="";
+let maxProb=Math.max(bigRate,smallRate,oddRate,evenRate);
+
+if(maxProb>0.6) strength="🟢 强信号";
+else if(maxProb>0.5) strength="🟡 中等";
+else strength="🔴 弱信号";
+
+result.innerHTML=
+"预测："+window.pred+" ("+final+")<br><br>"+
+"大："+(bigRate100).toFixed(0)+"% 小："+(smallRate100).toFixed(0)+"%<br>"+
+"单："+(oddRate100).toFixed(0)+"% 双："+(evenRate100).toFixed(0)+"%<br>"+
+"信号："+strength;
+}
+
+function record(){
+let realS=realSize.value;
+let realO=realOE.value;
+
+sizeHist.push(realS);
+oeHist.push(realO);
+
+let real=realS+realO;
+let hit=(real===window.pred)?1:0;
+
+history.push(hit);
+
+localStorage.setItem("h",JSON.stringify(history));
+localStorage.setItem("s",JSON.stringify(sizeHist));
+localStorage.setItem("o",JSON.stringify(oeHist));
+
+update();draw();
+}
+
+function update(){
+let last=history.slice(-10);
+let rate=last.reduce((a,b)=>a+b,0)/(last.length||1);
+
+stats.innerHTML="命中率："+(rate*100).toFixed(0)+"%";
+}
+
+function reset(){
+history=[];sizeHist=[];oeHist=[];
+localStorage.clear();
+update();draw();
+}
+
+function draw(){
+let ctx=document.getElementById("chart");
+if(window.c) c.destroy();
+
+window.c=new Chart(ctx,{
+type:"line",
+data:{
+labels:history.map((_,i)=>i+1),
+datasets:[{data:history,label:"命中"}]
+}
+});
+}
+
+update();draw();
+</script>
+
+</body>
+</html>
